@@ -1,0 +1,6 @@
+{
+  "name": "RMV Master Academy",
+  "description": "Noble Prize Cadre RMV test reference and psychometric assessment platform curated and authored by Aarti S Ravikumar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
