@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   BookOpen, 
   Award, 
@@ -9,7 +9,8 @@ import {
   CheckSquare, 
   Menu, 
   X,
-  Compass
+  Compass,
+  ChevronDown
 } from 'lucide-react';
 
 export type NavTab = 'dashboard' | 'study' | 'exam' | 'history' | 'bank' | 'achievements';
@@ -31,37 +32,55 @@ export const Navbar: React.FC<NavbarProps> = ({
   focusTime = 0,
   xp = 0,
 }) => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  // Close "More..." dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const formatMinutes = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     return `${mins}m`;
   };
 
-  const navItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
+  const primaryNavItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <Compass className="w-4 h-4" /> },
     { id: 'study', label: 'Study Modules', icon: <BookOpen className="w-4 h-4" /> },
     { id: 'exam', label: 'Exam Simulator', icon: <CheckSquare className="w-4 h-4" /> },
+  ];
+
+  const secondaryNavItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'bank', label: 'Question Bank', icon: <Search className="w-4 h-4" /> },
     { id: 'history', label: 'Assessment History', icon: <History className="w-4 h-4" /> },
     { id: 'achievements', label: 'Academic Honours', icon: <Award className="w-4 h-4" /> },
   ];
 
+  const allNavItems = [...primaryNavItems, ...secondaryNavItems];
+  const isSecondaryActive = secondaryNavItems.some((item) => item.id === activeTab);
+
   const handleSelect = (tab: NavTab) => {
     onSelectTab(tab);
     setMobileMenuOpen(false);
+    setMoreOpen(false);
   };
-
 
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-stone-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-16 gap-4">
           {/* Logo & Brand */}
           <button
             onClick={() => handleSelect('dashboard')}
-            className="flex items-center gap-3 text-left group cursor-pointer focus:outline-none"
+            className="flex items-center gap-3 text-left group cursor-pointer focus:outline-none shrink-0"
           >
             <div className="w-9 h-9 rounded-lg bg-slate-900 text-amber-400 flex items-center justify-center font-serif font-black text-lg shadow-xs group-hover:bg-slate-800 transition-colors">
               M
@@ -76,15 +95,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </button>
 
-          {/* Desktop Navigation Links */}
+          {/* Desktop Navigation Links with Adaptive "More..." Dropdown */}
           <nav className="hidden md:flex items-center gap-1">
-            {navItems.map((item) => {
+            {/* Primary Nav Items */}
+            {primaryNavItems.map((item) => {
               const isActive = activeTab === item.id;
               return (
                 <button
                   key={item.id}
                   onClick={() => handleSelect(item.id)}
-                  className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                     isActive
                       ? 'bg-slate-900 text-amber-300 shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-stone-100'
@@ -95,21 +115,68 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               );
             })}
+
+            {/* Secondary Nav Items (Visible directly on wide XL screens) */}
+            <div className="hidden xl:flex items-center gap-1">
+              {secondaryNavItems.map((item) => {
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleSelect(item.id)}
+                    className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'bg-slate-900 text-amber-300 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-stone-100'
+                    }`}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Adaptive "More..." Dropdown on Medium & Large Screens */}
+            <div className="relative xl:hidden" ref={dropdownRef}>
+              <button
+                onClick={() => setMoreOpen(!moreOpen)}
+                className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  isSecondaryActive || moreOpen
+                    ? 'bg-slate-900 text-amber-300 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-stone-100'
+                }`}
+              >
+                <span>More</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {moreOpen && (
+                <div className="absolute top-full left-0 mt-1.5 w-48 bg-white border border-stone-200 rounded-2xl shadow-xl py-1.5 z-50 animate-fadeIn">
+                  {secondaryNavItems.map((item) => {
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => handleSelect(item.id)}
+                        className={`w-full px-4 py-2.5 text-xs font-medium flex items-center gap-2.5 transition-colors cursor-pointer text-left ${
+                          isActive
+                            ? 'bg-amber-50 text-amber-900 font-bold'
+                            : 'text-slate-700 hover:bg-stone-100'
+                        }`}
+                      >
+                        {item.icon}
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </nav>
 
-          {/* Quick Search Trigger, Author Attribution & Live Quick Stats */}
+          {/* Right Action Bar: Quick Search & Live Stats */}
           <div className="flex items-center gap-2 md:gap-3">
-            {onOpenCitationModal && (
-              <button
-                onClick={onOpenCitationModal}
-                className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100/90 border border-amber-200/90 text-xs font-semibold text-amber-950 transition-all cursor-pointer shadow-2xs group"
-                title="Author: Aarti S Ravikumar (Click to cite or view curriculum credentials)"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
-                <span>By Aarti S Ravikumar</span>
-              </button>
-            )}
-
             {onOpenSearch && (
               <button
                 onClick={onOpenSearch}
@@ -135,10 +202,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            <div className="hidden xl:flex items-center gap-2.5">
+            <div className="hidden lg:flex items-center gap-2.5">
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-stone-100 border border-stone-200 text-xs font-mono text-slate-700">
                 <Clock className="w-3.5 h-3.5 text-blue-600" />
-                <span>{formatMinutes(focusTime)} study</span>
+                <span>{formatMinutes(focusTime)}</span>
               </div>
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200 text-xs font-mono text-amber-900">
                 <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
@@ -181,23 +248,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {onOpenCitationModal && (
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onOpenCitationModal();
-              }}
-              className="w-full px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-between text-amber-950 bg-amber-50 border border-amber-200/90 hover:bg-amber-100 cursor-pointer mb-2"
-            >
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
-                <span>Author: Aarti S Ravikumar (Curriculum Specialist)</span>
-              </div>
-              <span className="text-[10px] font-mono text-amber-800 underline">Cite</span>
-            </button>
-          )}
-
-          {navItems.map((item) => {
+          {allNavItems.map((item) => {
             const isActive = activeTab === item.id;
             return (
               <button
