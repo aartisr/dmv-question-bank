@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { PsychometricReport, AcademicAchievement } from '../types';
 import { 
   calculatePassStreak, 
@@ -10,6 +10,8 @@ const STORAGE_KEY_STATS = 'rmv_study_stats_v1';
 const STORAGE_KEY_ACHIEVEMENTS = 'rmv_academic_achievements_v1';
 
 export const useStudyTracker = () => {
+  const isInitialMountRef = useRef(true);
+
   const [totalFocusTime, setTotalFocusTime] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_STATS);
@@ -45,10 +47,7 @@ export const useStudyTracker = () => {
     } catch (e) {
       // Fallback
     }
-    // Pre-populate with baseline Chapter 5 master for initial satisfaction if needed, or empty
-    return {
-      chapter_5_master: 'Apr 26, 2026',
-    };
+    return {};
   });
 
   const [recentlyUnlocked, setRecentlyUnlocked] = useState<AcademicAchievement | null>(null);
@@ -150,6 +149,7 @@ export const useStudyTracker = () => {
   useEffect(() => {
     let updated = false;
     const newPersisted = { ...persistedUnlocked };
+    let newlyUnlockedAch: AcademicAchievement | null = null;
 
     achievements.forEach((ach) => {
       if (ach.unlocked && !newPersisted[ach.id]) {
@@ -160,12 +160,20 @@ export const useStudyTracker = () => {
         });
         newPersisted[ach.id] = unlockDate;
         updated = true;
-        // Award badge XP reward
-        setTotalXp((prev) => prev + ach.xpReward);
-        // Show celebration
-        setRecentlyUnlocked(ach);
+
+        if (!isInitialMountRef.current) {
+          // Award badge XP reward only during active user session updates
+          setTotalXp((prev) => prev + ach.xpReward);
+          newlyUnlockedAch = ach;
+        }
       }
     });
+
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+    } else if (newlyUnlockedAch) {
+      setRecentlyUnlocked(newlyUnlockedAch);
+    }
 
     if (updated) {
       setPersistedUnlocked(newPersisted);
