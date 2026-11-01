@@ -66,6 +66,21 @@ Open `http://localhost:3000` in your browser and start studying! 🎈
 
 ---
 
+## 🌐 Deploy to Vercel (1-Click Deployment)
+
+This project is 100% pre-configured for instant **Vercel** deployment with zero build configuration!
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Faartisr%2Fdmv-question-bank.git)
+
+### Easy Steps to Deploy Your Own Live Copy:
+
+1. Click the **[Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Faartisr%2Fdmv-question-bank.git)** button above (or log in to [vercel.com](https://vercel.com)).
+2. Import the `aartisr/dmv-question-bank` repository.
+3. Vercel automatically detects **Vite** with build command `npm run build` and output directory `dist`.
+4. Click **Deploy**—your live site will be published at `https://your-project.vercel.app` in under 60 seconds!
+
+---
+
 ## 🤝 Community & How You Can Help
 
 This project is built for the community, and I would **love** your support in spreading the word! Here is how you can get involved:
