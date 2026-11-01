@@ -52,12 +52,14 @@ export const Navbar: React.FC<NavbarProps> = ({
     return `${mins}m`;
   };
 
+  // Strictly 3 primary header menus
   const primaryNavItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <Compass className="w-4 h-4" /> },
     { id: 'study', label: 'Study Modules', icon: <BookOpen className="w-4 h-4" /> },
     { id: 'exam', label: 'Exam Simulator', icon: <CheckSquare className="w-4 h-4" /> },
   ];
 
+  // Secondary menus strictly inside "More..." popup dropdown
   const secondaryNavItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'bank', label: 'Question Bank', icon: <Search className="w-4 h-4" /> },
     { id: 'history', label: 'Assessment History', icon: <History className="w-4 h-4" /> },
@@ -74,30 +76,30 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-stone-200">
+    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-stone-200 overflow-visible">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
+        <div className="flex items-center justify-between h-16 gap-2 sm:gap-4">
           {/* Logo & Brand */}
           <button
             onClick={() => handleSelect('dashboard')}
-            className="flex items-center gap-3 text-left group cursor-pointer focus:outline-none shrink-0"
+            className="flex items-center gap-2.5 sm:gap-3 text-left group cursor-pointer focus:outline-none shrink-0"
           >
             <div className="w-9 h-9 rounded-lg bg-slate-900 text-amber-400 flex items-center justify-center font-serif font-black text-lg shadow-xs group-hover:bg-slate-800 transition-colors">
               M
             </div>
             <div>
-              <div className="text-base font-serif font-bold text-slate-900 group-hover:text-amber-800 transition-colors leading-none">
+              <div className="text-sm sm:text-base font-serif font-bold text-slate-900 group-hover:text-amber-800 transition-colors leading-none">
                 RMV Master Academy
               </div>
-              <div className="text-[10px] font-mono uppercase tracking-wider text-stone-500 mt-0.5">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-stone-500 mt-0.5 hidden xs:block">
                 Massachusetts M.G.L. c. 90
               </div>
             </div>
           </button>
 
-          {/* Desktop Navigation Links with Adaptive "More..." Dropdown */}
-          <nav className="hidden md:flex items-center gap-1">
-            {/* Primary Nav Items */}
+          {/* Desktop Navigation: Exactly 3 Primary Menus + 1 "More..." Dropdown */}
+          <nav className="hidden md:flex items-center gap-1 shrink-0">
+            {/* Exactly 3 Primary Header Menus */}
             {primaryNavItems.map((item) => {
               const isActive = activeTab === item.id;
               return (
@@ -116,29 +118,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               );
             })}
 
-            {/* Secondary Nav Items (Visible directly on wide XL screens) */}
-            <div className="hidden xl:flex items-center gap-1">
-              {secondaryNavItems.map((item) => {
-                const isActive = activeTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleSelect(item.id)}
-                    className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                      isActive
-                        ? 'bg-slate-900 text-amber-300 shadow-2xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-stone-100'
-                    }`}
-                  >
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Adaptive "More..." Dropdown on Medium & Large Screens */}
-            <div className="relative xl:hidden" ref={dropdownRef}>
+            {/* "More..." Popup Dropdown Trigger for remaining menus */}
+            <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setMoreOpen(!moreOpen)}
                 className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
@@ -151,17 +132,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
               </button>
 
+              {/* Popup Dropdown Menu */}
               {moreOpen && (
-                <div className="absolute top-full left-0 mt-1.5 w-48 bg-white border border-stone-200 rounded-2xl shadow-xl py-1.5 z-50 animate-fadeIn">
+                <div className="absolute top-full left-0 mt-2 w-52 bg-white border border-stone-200 rounded-2xl shadow-xl py-2 z-50 animate-fadeIn">
+                  <div className="px-3.5 py-1 text-[10px] font-mono uppercase tracking-wider text-stone-400 font-semibold border-b border-stone-100 mb-1">
+                    Additional Learning Hubs
+                  </div>
                   {secondaryNavItems.map((item) => {
                     const isActive = activeTab === item.id;
                     return (
                       <button
                         key={item.id}
                         onClick={() => handleSelect(item.id)}
-                        className={`w-full px-4 py-2.5 text-xs font-medium flex items-center gap-2.5 transition-colors cursor-pointer text-left ${
+                        className={`w-full px-3.5 py-2.5 text-xs font-medium flex items-center gap-2.5 transition-colors cursor-pointer text-left ${
                           isActive
-                            ? 'bg-amber-50 text-amber-900 font-bold'
+                            ? 'bg-amber-50 text-amber-900 font-bold border-l-2 border-amber-500'
                             : 'text-slate-700 hover:bg-stone-100'
                         }`}
                       >
@@ -175,16 +160,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </nav>
 
-          {/* Right Action Bar: Quick Search & Live Stats */}
-          <div className="flex items-center gap-2 md:gap-3">
+          {/* Right Action Bar: Quick Search & Live Quick Stats */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {onOpenSearch && (
               <button
                 onClick={onOpenSearch}
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200/80 border border-stone-200 text-xs text-stone-600 hover:text-slate-900 transition-all cursor-pointer shadow-2xs group"
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200/80 border border-stone-200 text-xs text-stone-600 hover:text-slate-900 transition-all cursor-pointer shadow-2xs group shrink-0"
                 title="Search RMV Driver's Manual and Question Bank (⌘K / Ctrl+K)"
               >
                 <Search className="w-3.5 h-3.5 text-amber-600 group-hover:scale-110 transition-transform" />
-                <span className="font-medium">Quick Search...</span>
+                <span className="font-medium hidden lg:inline">Quick Search...</span>
                 <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white border border-stone-300 text-stone-500 shadow-2xs">
                   ⌘K
                 </kbd>
@@ -202,7 +187,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            <div className="hidden lg:flex items-center gap-2.5">
+            <div className="hidden lg:flex items-center gap-2 shrink-0">
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-stone-100 border border-stone-200 text-xs font-mono text-slate-700">
                 <Clock className="w-3.5 h-3.5 text-blue-600" />
                 <span>{formatMinutes(focusTime)}</span>
