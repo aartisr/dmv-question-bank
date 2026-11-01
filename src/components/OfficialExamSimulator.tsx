@@ -9,6 +9,7 @@ interface OfficialExamSimulatorProps {
   initialChapterFilter?: 1 | 2 | 3 | 4 | 5;
   onExamComplete: (report: PsychometricReport) => void;
   weakSpotQuestionIds?: string[];
+  recentReports?: PsychometricReport[];
 }
 
 export const OfficialExamSimulator: React.FC<OfficialExamSimulatorProps> = ({
@@ -16,10 +17,12 @@ export const OfficialExamSimulator: React.FC<OfficialExamSimulatorProps> = ({
   initialChapterFilter,
   onExamComplete,
   weakSpotQuestionIds = [],
+  recentReports = [],
 }) => {
   const [mode, setMode] = useState<ExamMode>(initialMode);
   const [selectedChapter, setSelectedChapter] = useState<1 | 2 | 3 | 4 | 5>(initialChapterFilter || 1);
   const [instantFeedback, setInstantFeedback] = useState<boolean>(false);
+  const [isAdaptiveMode, setIsAdaptiveMode] = useState<boolean>(true);
   const [isExamActive, setIsExamActive] = useState<boolean>(false);
 
   // Active exam state
@@ -32,25 +35,144 @@ export const OfficialExamSimulator: React.FC<OfficialExamSimulatorProps> = ({
   const [sessionStartTime, setSessionStartTime] = useState<number>(0);
   const [showExitModal, setShowExitModal] = useState<boolean>(false);
 
+  // 1. Calculate Running Mastery Level (\theta) from recent psychometric report history
+  const runningMastery = useMemo(() => {
+    if (!recentReports || recentReports.length === 0) {
+      return { theta: 0.50, levelLabel: 'Standard Baseline Calibration (50%)', scorePct: 50 };
+    }
+
+    // Weight recent attempts exponentially higher (0.85 decay factor)
+    let weightedSum = 0;
+    let weightTotal = 0;
+
+    recentReports.slice(0, 5).forEach((report, idx) => {
+      const w = Math.pow(0.85, idx);
+      weightedSum += report.scorePercentage * w;
+      weightTotal += w;
+    });
+
+    const scorePct = weightTotal > 0 ? Math.round(weightedSum / weightTotal) : 50;
+    let theta = scorePct / 100;
+
+    // Small bonus for unbroken passing streaks
+    const recentPasses = recentReports.filter((r) => r.passed).length;
+    const streakBonus = Math.min(recentPasses * 0.02, 0.08);
+    theta = Math.min(Math.max(theta + streakBonus, 0.10), 0.98);
+
+    let levelLabel = `Standard Calibration (${Math.round(theta * 100)}%)`;
+    if (theta < 0.60) {
+      levelLabel = `Foundational Remediation Calibration (${Math.round(theta * 100)}%)`;
+    } else if (theta >= 0.82) {
+      levelLabel = `Rigorous Mastery Calibration (${Math.round(theta * 100)}%)`;
+    }
+
+    return { theta, levelLabel, scorePct };
+  }, [recentReports]);
+
+  // 2. Real-time in-session theta estimation as user answers questions
+  const inSessionTheta = useMemo(() => {
+    let theta = runningMastery.theta;
+    Object.entries(answers).forEach(([idxStr, optIdx]) => {
+      const qIdx = Number(idxStr);
+      const q = examQuestions[qIdx];
+      if (q) {
+        if (optIdx === q.correctIndex) {
+          theta += 0.025; // boost on correct response
+        } else {
+          theta -= 0.04; // adjust down on incorrect response
+        }
+      }
+    });
+    return Math.min(Math.max(theta, 0.10), 0.99);
+  }, [runningMastery.theta, answers, examQuestions]);
+
+  // 3. Item Response Theory (IRT) Adaptive Question Selection Algorithm
+  const selectAdaptiveQuestions = (
+    allAvailable: Question[],
+    targetCount: number,
+    theta: number
+  ): Question[] => {
+    const foundational = allAvailable.filter((q) => q.difficulty === 'Foundational');
+    const standard = allAvailable.filter((q) => q.difficulty === 'Standard');
+    const rigorous = allAvailable.filter((q) => q.difficulty === 'Rigorous');
+
+    let countF = 0;
+    let countS = 0;
+    let countR = 0;
+
+    if (theta < 0.60) {
+      // Low mastery -> 60% Foundational, 30% Standard, 10% Rigorous
+      countF = Math.round(targetCount * 0.60);
+      countS = Math.round(targetCount * 0.30);
+      countR = targetCount - countF - countS;
+    } else if (theta <= 0.82) {
+      // Moderate mastery -> 20% Foundational, 60% Standard, 20% Rigorous
+      countF = Math.round(targetCount * 0.20);
+      countS = Math.round(targetCount * 0.60);
+      countR = targetCount - countF - countS;
+    } else {
+      // High mastery -> 10% Foundational, 30% Standard, 60% Rigorous
+      countF = Math.round(targetCount * 0.10);
+      countS = Math.round(targetCount * 0.30);
+      countR = targetCount - countF - countS;
+    }
+
+    const shuffle = <T,>(arr: T[]): T[] => [...arr].sort(() => 0.5 - Math.random());
+
+    const pickedF = shuffle(foundational).slice(0, countF);
+    const pickedS = shuffle(standard).slice(0, countS);
+    const pickedR = shuffle(rigorous).slice(0, countR);
+
+    let result = [...pickedF, ...pickedS, ...pickedR];
+
+    // Backfill if pool is under targetCount
+    if (result.length < targetCount) {
+      const pickedIds = new Set(result.map((q) => q.id));
+      const remaining = shuffle(allAvailable.filter((q) => !pickedIds.has(q.id)));
+      result = [...result, ...remaining.slice(0, targetCount - result.length)];
+    }
+
+    return shuffle(result);
+  };
+
   // Start exam handler
   const startExam = (chosenMode: ExamMode = mode, ch: 1 | 2 | 3 | 4 | 5 = selectedChapter) => {
     let pool: Question[] = [];
+    const targetCount = chosenMode === 'diagnostic' ? 40 : chosenMode === 'chapter_drill' ? 15 : 25;
 
     if (chosenMode === 'chapter_drill') {
-      pool = getQuestionsByChapter(ch);
-      pool = [...pool].sort(() => 0.5 - Math.random()).slice(0, 15);
+      const chQuestions = getQuestionsByChapter(ch);
+      if (isAdaptiveMode) {
+        pool = selectAdaptiveQuestions(chQuestions, Math.min(15, chQuestions.length), runningMastery.theta);
+      } else {
+        pool = [...chQuestions].sort(() => 0.5 - Math.random()).slice(0, 15);
+      }
     } else if (chosenMode === 'weak_spots') {
       if (weakSpotQuestionIds.length > 0) {
         pool = masterQuestions.filter((q) => weakSpotQuestionIds.includes(q.id));
       }
-      if (pool.length < 5) {
-        pool = [...masterQuestions].sort(() => 0.5 - Math.random()).slice(0, 15);
+      if (pool.length < targetCount) {
+        const remaining = masterQuestions.filter((q) => !pool.some((p) => p.id === q.id));
+        if (isAdaptiveMode) {
+          const adaptiveBackfill = selectAdaptiveQuestions(remaining, targetCount - pool.length, runningMastery.theta);
+          pool = [...pool, ...adaptiveBackfill];
+        } else {
+          pool = [...pool, ...[...remaining].sort(() => 0.5 - Math.random()).slice(0, targetCount - pool.length)];
+        }
       }
     } else if (chosenMode === 'diagnostic') {
-      pool = [...masterQuestions].sort(() => 0.5 - Math.random()).slice(0, 40);
+      if (isAdaptiveMode) {
+        pool = selectAdaptiveQuestions(masterQuestions, 40, runningMastery.theta);
+      } else {
+        pool = [...masterQuestions].sort(() => 0.5 - Math.random()).slice(0, 40);
+      }
     } else {
       // Official Simulation: exactly 25 questions
-      pool = [...masterQuestions].sort(() => 0.5 - Math.random()).slice(0, 25);
+      if (isAdaptiveMode) {
+        pool = selectAdaptiveQuestions(masterQuestions, 25, runningMastery.theta);
+      } else {
+        pool = [...masterQuestions].sort(() => 0.5 - Math.random()).slice(0, 25);
+      }
     }
 
     setExamQuestions(pool);
@@ -406,6 +528,36 @@ export const OfficialExamSimulator: React.FC<OfficialExamSimulatorProps> = ({
           </div>
         </div>
 
+        {/* Adaptive CAT Calibration Banner */}
+        <div className="bg-slate-900 text-stone-100 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs border border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-400 text-slate-950 font-serif font-black flex items-center justify-center text-xs shrink-0 shadow-xs">
+              CAT
+            </div>
+            <div>
+              <div className="font-semibold text-amber-300 flex flex-wrap items-center gap-2">
+                <span>Computerized Adaptive Testing Algorithm (IRT)</span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-400/20 text-amber-200 border border-amber-400/30 font-semibold">
+                  {runningMastery.levelLabel}
+                </span>
+              </div>
+              <p className="text-stone-300 text-[11px] mt-0.5 leading-tight">
+                Item selection difficulty calibrates dynamically using your running psychometric report history.
+              </p>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer shrink-0 font-mono text-[11px]">
+            <input
+              type="checkbox"
+              checked={isAdaptiveMode}
+              onChange={(e) => setIsAdaptiveMode(e.target.checked)}
+              className="rounded text-amber-400 focus:ring-amber-400 h-4 w-4"
+            />
+            <span className="text-stone-200">Adaptive Difficulty Engine</span>
+          </label>
+        </div>
+
         {/* Options Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-stone-50 border border-stone-200 text-xs">
           <label className="flex items-center gap-2.5 cursor-pointer text-slate-700 font-medium">
@@ -424,7 +576,7 @@ export const OfficialExamSimulator: React.FC<OfficialExamSimulatorProps> = ({
         <div className="pt-2">
           <button
             onClick={() => startExam()}
-            className="w-full py-3.5 bg-slate-900 text-amber-50 rounded-xl font-medium text-sm md:text-base hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-xs group"
+            className="w-full py-3.5 bg-slate-900 text-amber-50 rounded-xl font-medium text-sm md:text-base hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-xs group cursor-pointer"
           >
             <span>Begin Examination Session</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -454,6 +606,14 @@ export const OfficialExamSimulator: React.FC<OfficialExamSimulatorProps> = ({
           <span className="text-xs text-slate-500 hidden sm:inline">
             Answered: {answeredCount}/{examQuestions.length}
           </span>
+          {isAdaptiveMode && (
+            <>
+              <span className="text-stone-300 hidden md:inline">|</span>
+              <span className="text-[11px] font-mono text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 hidden md:inline">
+                Adaptive Mastery: {Math.round(inSessionTheta * 100)}%
+              </span>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -504,11 +664,24 @@ export const OfficialExamSimulator: React.FC<OfficialExamSimulatorProps> = ({
       {/* Main Question Card */}
       <div className="bg-white border border-stone-200/90 rounded-2xl p-6 md:p-8 shadow-xs space-y-6">
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs font-mono text-slate-500">
+          <div className="flex flex-wrap items-center justify-between text-xs font-mono text-slate-500 gap-2">
             <span>Chapter {currentQ.chapter}: {currentQ.chapterName}</span>
-            <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60 font-semibold">
-              {currentQ.cognitiveDomain}
-            </span>
+            <div className="flex items-center gap-2">
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${
+                  currentQ.difficulty === 'Rigorous'
+                    ? 'bg-purple-100 text-purple-900 border-purple-300'
+                    : currentQ.difficulty === 'Standard'
+                    ? 'bg-amber-100 text-amber-900 border-amber-300'
+                    : 'bg-blue-100 text-blue-900 border-blue-300'
+                }`}
+              >
+                {currentQ.difficulty} Item
+              </span>
+              <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60 font-semibold">
+                {currentQ.cognitiveDomain}
+              </span>
+            </div>
           </div>
           <h3 className="text-lg md:text-xl font-serif font-bold text-slate-900 leading-relaxed pt-2">
             {currentQ.question}

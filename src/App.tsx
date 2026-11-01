@@ -169,6 +169,7 @@ export default function App() {
           initialMode={examMode}
           initialChapterFilter={selectedChapterNumber}
           weakSpotQuestionIds={weakSpotQuestionIds}
+          recentReports={history}
           onExamComplete={handleExamComplete}
         />
       ) : activeTab === 'bank' ? (
