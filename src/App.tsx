@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { Layout } from './components/Layout';
 import { NavTab } from './components/Navbar';
 import { UserDashboard } from './components/UserDashboard';
@@ -104,18 +105,20 @@ export default function App() {
   };
 
   return (
-    <Layout
-      activeTab={activeTab}
-      onSelectTab={(tab) => {
-        setActiveReport(null);
-        setActiveTab(tab);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }}
-      onOpenSearch={() => setIsSearchOpen(true)}
-      onOpenCitationModal={() => setIsCitationModalOpen(true)}
-      focusTime={totalFocusTime}
-      xp={totalXp}
-    >
+    <>
+      <Analytics />
+      <Layout
+        activeTab={activeTab}
+        onSelectTab={(tab) => {
+          setActiveReport(null);
+          setActiveTab(tab);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenSearch={() => setIsSearchOpen(true)}
+        onOpenCitationModal={() => setIsCitationModalOpen(true)}
+        focusTime={totalFocusTime}
+        xp={totalXp}
+      >
       {/* If a report is currently active and selected, display the Psychometric Report View */}
       {activeReport ? (
         <PsychometricReportView
@@ -239,6 +242,7 @@ export default function App() {
         />
       )}
     </Layout>
+    </>
   );
 }
 
